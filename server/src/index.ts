@@ -1,4 +1,4 @@
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
 
 const server = http.createServer(function (request: any, response: any) {
@@ -6,12 +6,28 @@ const server = http.createServer(function (request: any, response: any) {
 });
 
 const wss = new WebSocketServer({ server });
+const allRooms = new Map<string, WebSocket[]>();
 
-wss.on("connection", function connection(ws) {
-  ws.on("message", function message(data) {
-    if (data.toString() === "ping") {
-      ws.send("pong");
+wss.on("connection", (ws: WebSocket) => {
+  ws.on("message", (data: string) => {
+    const message = JSON.parse(data);
+    if (message.type === "join") {
+      const { room } = message;
+      if (!allRooms.has(room)) {
+        allRooms.set(room, []);
+      }
+      allRooms.get(room)?.push(ws);
+      console.log(new Date() + ` Client joined room ${room}`);
+      return;
     }
+
+    const { room } = message;
+    const clients = allRooms.get(room);
+    clients?.forEach((client) => {
+      if (client !== ws) {
+        client.send(JSON.stringify({ text: message.text }));
+      }
+    });
   });
 });
 

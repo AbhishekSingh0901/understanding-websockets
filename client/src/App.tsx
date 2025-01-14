@@ -1,30 +1,56 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 function App() {
+  const [room, setRoom] = useState("");
+  const [joined, setJoined] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [messages, setMessages] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const sendMessage = () => {
-    console.log("Message sent");
-    const message = inputRef?.current?.value;
-    ws?.send(message || "");
+  const joinRoom = () => {
+    const newSocket = new WebSocket("ws://localhost:8080");
+    newSocket.onopen = () => {
+      newSocket.send(JSON.stringify({ type: "join", room }));
+      setJoined(true);
+    };
+    newSocket.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      setMessages((prev) => [...prev, data.text || ""]);
+    };
+    setWs(newSocket);
   };
 
-  useEffect(() => {
-    const newSocket = new WebSocket("ws://localhost:8080");
-    setWs(newSocket);
-    newSocket.onopen = () => {
-      console.log("Connection opened");
-    };
+  const sendMessage = () => {
+    if (ws && inputRef.current?.value) {
+      ws.send(
+        JSON.stringify({ type: "message", text: inputRef.current.value, room })
+      );
+      inputRef.current.value = "";
+    }
+  };
 
-    newSocket.onmessage = (message) => {
-      alert("Message received: " + message.data.toString());
-    };
-  }, []);
   return (
     <div>
-      <input type="text" ref={inputRef} placeholder="Message.."></input>
-      <button onClick={sendMessage}>Send</button>
+      {!joined ? (
+        <div>
+          <input
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            placeholder="Enter room name"
+          />
+          <button onClick={joinRoom}>Join Room</button>
+        </div>
+      ) : (
+        <div>
+          <div>
+            {messages.map((msg, i) => (
+              <div key={i}>{msg}</div>
+            ))}
+          </div>
+          <input type="text" ref={inputRef} placeholder="Message..." />
+          <button onClick={sendMessage}>Send</button>
+        </div>
+      )}
     </div>
   );
 }
